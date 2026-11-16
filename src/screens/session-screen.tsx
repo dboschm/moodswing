@@ -59,6 +59,7 @@ export function SessionScreen({ code, onNavigate }: SessionScreenProps) {
 
   return (
     <AppShell
+      soothing={soothing}
       header={
         <SessionHeader
           code={code}
