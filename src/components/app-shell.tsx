@@ -1,27 +1,28 @@
-import type { MouseEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
+import { Logo } from './logo';
+import { TitleCell } from './title-cell';
 
 interface AppShellProps {
-  onHome: () => void;
+  /** Further title block cells after the app name. */
+  header?: ReactNode;
   children: ReactNode;
 }
 
-export function AppShell({ onHome, children }: AppShellProps) {
-  const goHome = (event: MouseEvent<HTMLAnchorElement>) => {
-    event.preventDefault();
-    onHome();
-  };
-
+/** The page as one drawing sheet: a title block across the top and the content below it. */
+export function AppShell({ header, children }: AppShellProps) {
   return (
     <div className="app">
-      <header className="app-header">
-        <h1>
-          <a href="/" onClick={goHome}>
-            Mood Swing <span className="app-header__version">(version 1.0)</span>
-          </a>
-        </h1>
-        <p>How does your team really feel?</p>
-      </header>
-      <main>{children}</main>
+      <div className="sheet">
+        <header className="title-block">
+          <TitleCell className="title-cell--name">
+            <h1>
+              <Logo />
+            </h1>
+          </TitleCell>
+          {header}
+        </header>
+        <main>{children}</main>
+      </div>
     </div>
   );
 }

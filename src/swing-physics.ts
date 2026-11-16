@@ -19,15 +19,15 @@ export interface AngleSample {
 
 /**
  * The swing springs back to the chosen mood instead of hanging straight down,
- * so a flick overshoots and wobbles but the mood stays where it was let go.
+ * so a flick carries it on a little before it eases back to where it was let go.
  */
 export const SPRING_OMEGA = 4.2;
-export const SPRING_DAMPING = 0.25;
+export const SPRING_DAMPING = 0.65;
 const MAX_STEP_SECONDS = 1 / 120;
 /** Cap simulated time so a backgrounded tab doesn't replay seconds of physics. */
 const MAX_FRAME_SECONDS = 0.1;
 const LIMIT_BOUNCE = 0.35;
-const MAX_RELEASE_VELOCITY = 400;
+const MAX_RELEASE_VELOCITY = 80;
 const VELOCITY_WINDOW_MS = 100;
 
 /** Angle of the line from the pivot to the pointer, in degrees from straight down. */

@@ -25,6 +25,23 @@ describe('faceGeometry', () => {
     expect(faceGeometry(50).eyeOpen).toBe(1);
   });
 
+  it('squints the eyes into arcs gradually instead of swapping shapes', () => {
+    const squint = Array.from({ length: 15 }, (_, step) => faceGeometry(78 + step / 2));
+
+    squint.slice(1).forEach((face, index) => {
+      expect(face.eyeOpen).toBeLessThan(squint[index].eyeOpen);
+      expect(face.eyeStrokeWidth).toBeGreaterThan(squint[index].eyeStrokeWidth);
+    });
+    expect(faceGeometry(50).eyeStrokeWidth).toBe(0);
+    // Fully shut, the lower lid lies on the upper one and only the stroke shows.
+    const [upper, lower] = faceGeometry(95)
+      .eyePath.split(' Z')[0]
+      .split(' C ')
+      .slice(1)
+      .map((curve) => curve.split(' ').map(Number));
+    expect([lower[1], lower[3]]).toEqual([upper[1], upper[3]]);
+  });
+
   it('cries tears of joy only at 90 and above', () => {
     moods.forEach((mood) => {
       expect(faceGeometry(mood).tearOpacity > 0).toBe(mood >= 90 || (mood > 88 && mood < 90));

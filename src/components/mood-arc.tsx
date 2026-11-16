@@ -1,9 +1,8 @@
-import { LAUGHING_SIDE, MAX_ANGLE_DEG, moodToAngle } from '../../shared/mood';
+import { moodToAngle } from '../../shared/mood';
 import type { Point } from '../swing-physics';
 import { MoodFace } from './mood-face';
 import { Plank } from './swing';
-import { Rope } from './rope';
-import { PIVOT, ROPE_LENGTH, ROPE_SPREAD, seatPosition } from './scene-geometry';
+import { ROPE_LENGTH, ropesPath, seatPosition } from './scene-geometry';
 
 const VOTE_FACE_RADIUS = 11;
 const RING_RADII = [ROPE_LENGTH + 52, ROPE_LENGTH + 76, ROPE_LENGTH + 100];
@@ -44,26 +43,27 @@ export function placeVotes(moods: readonly number[]): PlacedVote[] {
     });
 }
 
-/** The scale under the swing: a dashed path, the two extremes, and everyone's anonymous mood. */
-export function MoodArc({ moods }: { moods: readonly number[] }) {
-  const start = seatPosition(-MAX_ANGLE_DEG);
-  const end = seatPosition(MAX_ANGLE_DEG);
-  const laughingEnd = seatPosition((MAX_ANGLE_DEG + 9) * LAUGHING_SIDE);
-  const angryEnd = seatPosition(-(MAX_ANGLE_DEG + 9) * LAUGHING_SIDE);
+/** A faint outline of one teammate's swing at their mood. */
+function VoteSwing({ mood }: { mood: number }) {
+  const seat = seatPosition(moodToAngle(mood));
 
   return (
+    <>
+      <path d={ropesPath(seat)} />
+      <Plank x={seat.x} y={seat.y} className="vote-swing__plank" />
+    </>
+  );
+}
+
+/** Everyone's anonymous mood: a faint swing at its angle and a small face below the swing's path. */
+export function MoodArc({ moods }: { moods: readonly number[] }) {
+  return (
     <g className="mood-arc">
-      <path
-        d={`M ${start.x} ${start.y} A ${ROPE_LENGTH} ${ROPE_LENGTH} 0 0 0 ${end.x} ${end.y}`}
-        fill="none"
-        stroke="#ffffff"
-        strokeWidth={3}
-        strokeDasharray="2 10"
-        strokeLinecap="round"
-        opacity={0.85}
-      />
-      <MoodFace mood={100} x={laughingEnd.x} y={laughingEnd.y} radius={14} />
-      <MoodFace mood={0} x={angryEnd.x} y={angryEnd.y} radius={14} />
+      <g className="vote-swing" aria-hidden="true">
+        {moods.map((mood, index) => (
+          <VoteSwing key={index} mood={mood} />
+        ))}
+      </g>
       {placeVotes(moods).map(({ mood, position }, index) => (
         <MoodFace key={index} mood={mood} x={position.x} y={position.y} radius={VOTE_FACE_RADIUS} />
       ))}
@@ -71,31 +71,29 @@ export function MoodArc({ moods }: { moods: readonly number[] }) {
   );
 }
 
-/** A see-through swing hanging at the team's average mood. */
+/** A dashed outline of the swing hanging at the team's average mood. */
 export function GhostSwing({ mood }: { mood: number }) {
   const angle = moodToAngle(mood);
   const seat = seatPosition(angle);
 
   return (
-    <g className="ghost-swing" opacity={0.75} aria-hidden="true">
-      <Rope from={{ x: PIVOT.x - ROPE_SPREAD, y: PIVOT.y }} to={{ x: seat.x - ROPE_SPREAD, y: seat.y }} dashed />
-      <Rope from={{ x: PIVOT.x + ROPE_SPREAD, y: PIVOT.y }} to={{ x: seat.x + ROPE_SPREAD, y: seat.y }} dashed />
-      <MoodFace mood={mood} x={seat.x} y={seat.y - 22} radius={16} opacity={0.8} />
-      <Plank x={seat.x} y={seat.y} ghost />
-      <text x={seat.x} y={seat.y + 5} textAnchor="middle" className="ghost-swing__label">
+    <g className="ghost-swing" aria-hidden="true">
+      <path className="ghost-swing__rope" d={ropesPath(seat)} />
+      <MoodFace mood={mood} x={seat.x} y={seat.y - 22} radius={16} opacity={0.7} />
+      <Plank x={seat.x} y={seat.y} className="ghost-swing__plank" />
+      <text x={seat.x} y={seat.y + 3.5} textAnchor="middle" className="ghost-swing__label">
         TEAM
       </text>
     </g>
   );
 }
 
-/** Hangs from the left branch once the session has ended. */
+/** Marks the diagram once the session has ended. */
 export function ClosedSign() {
   return (
     <g className="closed-sign" aria-hidden="true">
-      <path d="M 86 322 L 80 382 M 138 368 L 146 382" stroke="#6e5320" strokeWidth={2.5} strokeLinecap="round" />
-      <rect x={62} y={380} width={102} height={34} rx={4} fill="#f3e2b0" stroke="#6e5320" strokeWidth={2.5} />
-      <text x={113} y={403} textAnchor="middle" className="closed-sign__text">
+      <rect x={16} y={12} width={104} height={32} rx={4} />
+      <text x={68} y={34} textAnchor="middle" className="closed-sign__text">
         CLOSED
       </text>
     </g>

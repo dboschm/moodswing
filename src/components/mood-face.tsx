@@ -40,22 +40,14 @@ export function MoodFace({ mood, x = 0, y = 0, radius = FACE_RADIUS, tilt = 0, a
           </g>
         )}
         <g className="mood-face__eyes">
-          {face.eyeOpen > 0 && (
-            <g fill={INK} opacity={Math.min(1, face.eyeOpen * 1.5)}>
-              <ellipse cx={-9} cy={-5} rx={3.4} ry={face.eyeRy} />
-              <ellipse cx={9} cy={-5} rx={3.4} ry={face.eyeRy} />
-            </g>
-          )}
-          {face.eyeOpen < 1 && (
-            <path
-              d="M -14 -3 Q -9 -10 -4 -3 M 4 -3 Q 9 -10 14 -3"
-              fill="none"
-              stroke={INK}
-              strokeWidth={2.6}
-              strokeLinecap="round"
-              opacity={1 - face.eyeOpen}
-            />
-          )}
+          <path
+            d={face.eyePath}
+            fill={INK}
+            stroke={INK}
+            strokeWidth={face.eyeStrokeWidth}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
         </g>
         {face.browOpacity > 0 && (
           <path d={face.browPath} stroke={INK} strokeWidth={2.8} strokeLinecap="round" opacity={face.browOpacity} />

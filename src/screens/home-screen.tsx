@@ -3,6 +3,7 @@ import { normalizeSessionCode } from '../../shared/protocol';
 import { AppShell } from '../components/app-shell';
 import { MoodScene } from '../components/mood-scene';
 import { Swing } from '../components/swing';
+import { TitleCell } from '../components/title-cell';
 import { useCreateSession } from '../hooks/use-create-session';
 import { useConnectionStatus } from '../hooks/use-mood-socket';
 import { sessionPath } from '../session-route';
@@ -26,27 +27,19 @@ export function HomeScreen({ onNavigate }: { onNavigate: (path: string) => void 
   };
 
   return (
-    <AppShell onHome={() => onNavigate('/')}>
-      <div className="layout">
-        <MoodScene label="Mood swing preview" caption="How your team really feels">
-          <Swing mood={demoMood} onCommit={setDemoMood} label="Try the mood swing" />
-        </MoodScene>
+    <AppShell
+      header={
+        <>
+          <TitleCell label="New session">
+            <button type="button" className="button" onClick={create} disabled={creating}>
+              {creating ? 'Starting…' : 'Start a mood session'}
+            </button>
+            {creating && status !== 'live' && <span className="hint">Connecting to the server…</span>}
+            {failed && <span className="error">Could not start the session. Please try again.</span>}
+          </TitleCell>
 
-        <section className="card intro">
-          <h2>A team mood meter you can swing</h2>
-          <p>
-            Start a session and share the link. Everyone pulls their own swing towards laughing or angry, and the whole
-            team sees every mood live. Moods are anonymous. When you're done, end the session to see the results.
-          </p>
-          <button type="button" className="button button--large" onClick={create} disabled={creating}>
-            {creating ? 'Starting…' : 'Start a mood session'}
-          </button>
-          {creating && status !== 'live' && <p className="hint">Connecting to the server…</p>}
-          {failed && <p className="error">The session could not be started. Please try again.</p>}
-
-          <form className="join-form" onSubmit={join} noValidate>
-            <label htmlFor="session-code-input">Got a code from a teammate?</label>
-            <div className="join-form__row">
+          <TitleCell label="Got a code from a teammate?" labelFor="session-code-input">
+            <form className="join-form" onSubmit={join} noValidate>
               <input
                 id="session-code-input"
                 value={codeInput}
@@ -64,15 +57,22 @@ export function HomeScreen({ onNavigate }: { onNavigate: (path: string) => void 
               <button type="submit" className="button button--secondary">
                 Join
               </button>
-            </div>
+            </form>
             {invalidCode && (
-              <p id="session-code-error" className="error">
-                That doesn't look like a session code. Codes look like MS-K7Q4XZ.
-              </p>
+              <span id="session-code-error" className="error">
+                Codes look like MS-K7Q4XZ.
+              </span>
             )}
-          </form>
-        </section>
-      </div>
+          </TitleCell>
+        </>
+      }
+    >
+      <MoodScene
+        label="Mood swing preview"
+        note="Start a session and share the link. Everyone swings towards laughing or angry and the whole team sees every mood live, anonymously. End the session to see the results."
+      >
+        <Swing mood={demoMood} onCommit={setDemoMood} label="Try the mood swing" />
+      </MoodScene>
     </AppShell>
   );
 }

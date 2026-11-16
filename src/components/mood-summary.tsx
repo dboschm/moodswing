@@ -14,7 +14,7 @@ export function summaryText(snapshot: SessionSnapshot): string {
   const average = averageMood(snapshot.moods);
 
   if (average === null) {
-    return `Mood Swing ${snapshot.code}: nobody shared a mood.`;
+    return `moodswing ${snapshot.code}: nobody shared a mood.`;
   }
 
   const counts = bandCounts(snapshot.moods)
@@ -23,7 +23,7 @@ export function summaryText(snapshot: SessionSnapshot): string {
     .join(' ');
   const people = snapshot.moods.length === 1 ? '1 mood' : `${snapshot.moods.length} moods`;
 
-  return `Mood Swing ${snapshot.code}: ${people}, the team feels ${moodBand(average).label.toLowerCase()} (${Math.round(average)}/100). ${counts}`;
+  return `moodswing ${snapshot.code}: ${people}, the team feels ${moodBand(average).label.toLowerCase()} (${Math.round(average)}/100). ${counts}`;
 }
 
 /** The results board shown to everyone once the session has ended. */
@@ -41,11 +41,11 @@ export function MoodSummary({ snapshot, creating, onCopySummary, onStartNew }: M
   };
 
   return (
-    <section className="card summary" aria-labelledby="summary-title">
-      <p className="eyebrow">Final results · {snapshot.code}</p>
+    <section className="summary" aria-labelledby="summary-title">
       <div className="summary__headline">
         <FaceIcon mood={average ?? 50} size={88} animated={average !== null} />
         <div>
+          <p className="eyebrow">Final results</p>
           <h2 id="summary-title">
             {average === null ? 'Nobody shared a mood' : `The team is feeling ${moodBand(average).label.toLowerCase()}`}
           </h2>

@@ -30,7 +30,7 @@ describe('Swing', () => {
     renderSwing({ mood: null });
 
     expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe('Not chosen yet');
-    expect(screen.getByText('Drag me!')).toBeTruthy();
+    expect(screen.getByText('Drag me')).toBeTruthy();
   });
 
   it('moves with the arrow keys and commits once the keys rest', () => {

@@ -1,18 +1,8 @@
+import { useId } from 'react';
 import { moodBand, toMood } from '../../shared/mood';
-import { faceGeometry } from '../face-geometry';
 import { useSwing } from '../hooks/use-swing';
 import { MoodFace } from './mood-face';
-import { ROPE_OUTLINE, Rope } from './rope';
-import {
-  GROUND_SHADOW_Y,
-  PIVOT,
-  PLANK_HEIGHT,
-  PLANK_WIDTH,
-  ROPE_LENGTH,
-  ROPE_SPREAD,
-  pointOnRope,
-  seatPosition,
-} from './scene-geometry';
+import { PIVOT, PLANK_HEIGHT, PLANK_WIDTH, ROPE_LENGTH, ROPE_SPREAD, arcPath, pointOnRope, ropesPath, seatPosition } from './scene-geometry';
 
 interface SwingProps {
   /** The chosen mood; null hangs the swing straight down. */
@@ -22,109 +12,89 @@ interface SwingProps {
   label?: string;
 }
 
-const FACE_RADIUS = 31;
-const LIMB = '#7a4a00';
+const FACE_RADIUS = 36;
+const JOINT_RADIUS = 4.5;
 
 const clamp = (value: number, limit: number) => Math.max(-limit, Math.min(limit, value));
 
-/** Diagonal rope wraps around the branch where each rope is tied. */
-function RopeKnot({ x }: { x: number }) {
+export function Plank({ x, y, className = 'swing__plank' }: { x: number; y: number; className?: string }) {
   return (
-    <g>
-      <Rope from={{ x: x - 8, y: PIVOT.y - 19 }} to={{ x: x + 8, y: PIVOT.y - 4 }} />
-      <Rope from={{ x: x - 8, y: PIVOT.y - 6 }} to={{ x: x + 8, y: PIVOT.y + 9 }} />
+    <rect
+      className={className}
+      x={x - PLANK_WIDTH / 2}
+      y={y - PLANK_HEIGHT / 2}
+      width={PLANK_WIDTH}
+      height={PLANK_HEIGHT}
+      rx={3}
+    />
+  );
+}
+
+/** The ropes' hinges on the beam; the ghost swing hangs from the same ones. */
+function Hinges() {
+  return (
+    <g className="swing__joint">
+      <circle cx={PIVOT.x - ROPE_SPREAD} cy={PIVOT.y} r={JOINT_RADIUS} />
+      <circle cx={PIVOT.x + ROPE_SPREAD} cy={PIVOT.y} r={JOINT_RADIUS} />
     </g>
   );
 }
 
-export function Plank({ x, y, ghost = false }: { x: number; y: number; ghost?: boolean }) {
-  const left = x - PLANK_WIDTH / 2;
-
-  if (ghost) {
-    return (
-      <rect
-        x={left}
-        y={y - PLANK_HEIGHT / 2}
-        width={PLANK_WIDTH}
-        height={PLANK_HEIGHT + 5}
-        rx={3}
-        fill="#ffffff"
-        fillOpacity={0.45}
-        stroke={ROPE_OUTLINE}
-        strokeWidth={2.5}
-        strokeDasharray="7 5"
-      />
-    );
-  }
+/** A double-headed arrow along the seat's path, shown until the first move. */
+function DragHint({ angle }: { angle: number }) {
+  const arrowId = `drag-arrow${useId().replace(/:/g, '')}`;
+  const label = seatPosition(angle, ROPE_LENGTH + 39);
 
   return (
-    <g className="swing__plank" stroke={ROPE_OUTLINE} strokeWidth={2.5} strokeLinejoin="round">
-      <rect x={left} y={y + PLANK_HEIGHT / 2 - 2} width={PLANK_WIDTH} height={7} rx={2} fill="#d6bb78" />
-      <rect x={left} y={y - PLANK_HEIGHT / 2} width={PLANK_WIDTH} height={PLANK_HEIGHT} rx={3} fill="#f3e2b0" />
-      <path d={`M ${left + 12} ${y - 1} H ${left + 70}`} stroke="#dcc791" strokeWidth={1.5} />
-    </g>
-  );
-}
-
-/** Invites people to grab the swing until they first move it. */
-function SpeechBubble({ x, y, text }: { x: number; y: number; text: string }) {
-  const left = x + 20;
-  const top = y - 78;
-  const width = 104;
-  const height = 34;
-  const r = height / 2;
-
-  return (
-    <g className="speech-bubble" pointerEvents="none">
+    <g
+      className="drag-hint"
+      style={{ transformOrigin: `${PIVOT.x}px ${PIVOT.y}px` }}
+      pointerEvents="none"
+      aria-hidden="true"
+    >
+      <defs>
+        <marker
+          id={arrowId}
+          viewBox="0 0 10 10"
+          refX={7}
+          refY={5}
+          markerWidth={5}
+          markerHeight={5}
+          orient="auto-start-reverse"
+        >
+          <path className="drag-hint__arrow" d="M 0 0 L 10 5 L 0 10 z" />
+        </marker>
+      </defs>
       <path
-        d={[
-          `M ${left + r} ${top} H ${left + width - r}`,
-          `A ${r} ${r} 0 0 1 ${left + width - r} ${top + height}`,
-          `H ${left + 36} L ${x + 12} ${y - 26} L ${left + 20} ${top + height} H ${left + r}`,
-          `A ${r} ${r} 0 0 1 ${left + r} ${top} Z`,
-        ].join(' ')}
-        fill="#ffffff"
-        stroke="#3b2400"
-        strokeWidth={2}
-        strokeLinejoin="round"
+        className="drag-hint__path"
+        d={arcPath(angle - 13, angle + 13, ROPE_LENGTH + 20)}
+        markerStart={`url(#${arrowId})`}
+        markerEnd={`url(#${arrowId})`}
       />
-      <text x={left + width / 2} y={top + 22} textAnchor="middle" className="speech-bubble__text">
-        {text}
+      <text className="drag-hint__text" x={label.x} y={label.y} textAnchor="middle">
+        Drag me
       </text>
     </g>
   );
 }
 
 /**
- * The draggable swing. The rider's face shows the mood under the swing while
- * it moves; letting go commits that mood.
+ * The draggable swing. The face on the seat shows the mood under the swing
+ * while it moves; letting go commits that mood.
  */
 export function Swing({ mood, onCommit, disabled = false, label = 'Your mood' }: SwingProps) {
   const swing = useSwing({ mood, onCommit, disabled });
   const seat = seatPosition(swing.angle);
-  const ropeBottom = (side: -1 | 1) => ({ x: seat.x + side * ROPE_SPREAD, y: seat.y + 2 });
-  const ropeTop = (side: -1 | 1) => ({ x: PIVOT.x + side * ROPE_SPREAD, y: PIVOT.y });
-  const faceCenter = { x: seat.x, y: seat.y - PLANK_HEIGHT / 2 - FACE_RADIUS + 3 };
-  const skin = faceGeometry(swing.liveMood).skin;
-  // Legs trail behind the motion and the head leans into it.
-  const legLag = clamp(-swing.velocity * 0.09, 16);
+  const ropeBottom = (side: -1 | 1) => ({ x: seat.x + side * ROPE_SPREAD, y: seat.y });
+  const faceCenter = { x: seat.x, y: seat.y - PLANK_HEIGHT / 2 - FACE_RADIUS + 1 };
+  // The face leans into the motion.
   const tilt = clamp(-swing.velocity * 0.05, 12);
-  const rise = (ROPE_LENGTH - (seat.y - PIVOT.y)) / ROPE_LENGTH;
   const value = swing.dragging ? toMood(swing.liveMood) : swing.targetMood;
   const band = moodBand(value);
-  const hand = (side: -1 | 1) => pointOnRope(swing.angle, side, 54);
-  const shoulder = (side: -1 | 1) => ({ x: faceCenter.x + side * 25, y: faceCenter.y + 13 });
+  const grabTop = (side: -1 | 1) => pointOnRope(swing.angle, side, 150);
 
   return (
     <g className="swing">
-      <ellipse
-        cx={seat.x}
-        cy={GROUND_SHADOW_Y}
-        rx={56 * (1 - rise * 0.9)}
-        ry={9 * (1 - rise * 0.7)}
-        fill="#2f6e17"
-        opacity={0.75 - rise}
-      />
       <g
         ref={swing.handleRef}
         className="swing__handle"
@@ -140,63 +110,34 @@ export function Swing({ mood, onCommit, disabled = false, label = 'Your mood' }:
         aria-disabled={disabled || undefined}
         {...swing.handlers}
       >
-        <g className={swing.dragging ? 'swing__body' : 'swing__body swing__body--idle'}>
-          <Rope from={ropeTop(-1)} to={ropeBottom(-1)} />
-          <Rope from={ropeTop(1)} to={ropeBottom(1)} />
-          <MoodFace
-            mood={swing.liveMood}
-            x={faceCenter.x}
-            y={faceCenter.y}
-            radius={FACE_RADIUS}
-            tilt={tilt}
-            animated={!swing.dragging}
-          />
-          <Plank x={seat.x} y={seat.y} />
-          <g stroke={LIMB} strokeWidth={3.5} strokeLinecap="round" fill="none">
-            {([-1, 1] as const).map((side) => (
-              <path
-                key={side}
-                d={`M ${seat.x + side * 9} ${seat.y + 6} Q ${seat.x + side * 10 + legLag * 0.4} ${seat.y + 20} ${seat.x + side * 11 + legLag} ${seat.y + 31}`}
-              />
-            ))}
-            {([-1, 1] as const).map((side) => {
-              const from = shoulder(side);
-              const to = hand(side);
-
-              return <path key={side} d={`M ${from.x} ${from.y} Q ${(from.x + to.x) / 2} ${(from.y + to.y) / 2 + 9} ${to.x} ${to.y}`} />;
-            })}
-          </g>
-          {([-1, 1] as const).map((side) => (
-            <ellipse
-              key={side}
-              cx={seat.x + side * 13 + legLag}
-              cy={seat.y + 33}
-              rx={6.5}
-              ry={3.8}
-              fill="#d23b2a"
-              stroke="#5a1a10"
-              strokeWidth={1.5}
-            />
-          ))}
-          {([-1, 1] as const).map((side) => (
-            <circle key={side} cx={hand(side).x} cy={hand(side).y} r={4.5} fill={skin} stroke={LIMB} strokeWidth={1.5} />
-          ))}
-          <ellipse className="swing__focus-ring" cx={seat.x} cy={seat.y - 18} rx={74} ry={56} />
-          {/* Generous invisible grab area around the seat and the lower ropes. */}
-          <path
-            d={[
-              `M ${pointOnRope(swing.angle, -1, 150).x - 18} ${pointOnRope(swing.angle, -1, 150).y}`,
-              `L ${pointOnRope(swing.angle, 1, 150).x + 18} ${pointOnRope(swing.angle, 1, 150).y}`,
-              `L ${seat.x + ROPE_SPREAD + 30} ${seat.y + 42}`,
-              `L ${seat.x - ROPE_SPREAD - 30} ${seat.y + 42} Z`,
-            ].join(' ')}
-            fill="transparent"
-          />
+        <path className="swing__rope" d={ropesPath(seat)} />
+        <MoodFace
+          mood={swing.liveMood}
+          x={faceCenter.x}
+          y={faceCenter.y}
+          radius={FACE_RADIUS}
+          tilt={tilt}
+          animated={!swing.dragging}
+        />
+        <Plank x={seat.x} y={seat.y} />
+        <g className="swing__joint">
+          <circle cx={ropeBottom(-1).x} cy={ropeBottom(-1).y} r={JOINT_RADIUS - 1} />
+          <circle cx={ropeBottom(1).x} cy={ropeBottom(1).y} r={JOINT_RADIUS - 1} />
         </g>
+        <ellipse className="swing__focus-ring" cx={seat.x} cy={seat.y - 30} rx={74} ry={54} />
+        {/* Generous invisible grab area around the seat and the lower ropes. */}
+        <path
+          d={[
+            `M ${grabTop(-1).x - 18} ${grabTop(-1).y}`,
+            `L ${grabTop(1).x + 18} ${grabTop(1).y}`,
+            `L ${seat.x + ROPE_SPREAD + 30} ${seat.y + 30}`,
+            `L ${seat.x - ROPE_SPREAD - 30} ${seat.y + 30} Z`,
+          ].join(' ')}
+          fill="transparent"
+        />
       </g>
-      <RopeKnot x={PIVOT.x - ROPE_SPREAD} />
-      <RopeKnot x={PIVOT.x + ROPE_SPREAD} />
-      {mood === null && !swing.dragging && !disabled && <SpeechBubble x={faceCenter.x} y={faceCenter.y} text="Drag me!" />}
+      <Hinges />
+      {mood === null && !swing.dragging && !disabled && <DragHint angle={swing.angle} />}
     </g>
   );
 }

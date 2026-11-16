@@ -22,7 +22,9 @@ export interface FaceGeometry {
   tongue: { cx: number; cy: number; rx: number; ry: number };
   /** 1 = round eyes, 0 = squeezed-shut laughing arcs. */
   eyeOpen: number;
-  eyeRy: number;
+  /** Both eyes as one shape that squints from ovals into "^ ^" arcs, filled and stroked. */
+  eyePath: string;
+  eyeStrokeWidth: number;
   browPath: string;
   browOpacity: number;
   blushOpacity: number;
@@ -43,6 +45,27 @@ function mixColor(from: readonly number[], to: readonly number[], t: number): st
   const channels = from.map((channel, index) => Math.round(lerp(channel, to[index], t)));
 
   return `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * One eye as two curves between its corners. Open, they bulge apart into an
+ * oval; while laughing the lower lid rises until both curves meet in an arc,
+ * which the stroke then draws.
+ */
+function eyePath(centerX: number, closed: number, openBulge: number): string {
+  const halfWidth = lerp(3.4, 5, closed);
+  const cornerY = lerp(-5, -3, closed);
+  const top = cornerY - (4 / 3) * lerp(openBulge, 3.5, closed);
+  const bottom = cornerY + (4 / 3) * lerp(openBulge, -3.5, closed);
+  // Controls above the corners make an oval; a third of the way in, a pointed arc.
+  const reach = halfWidth * lerp(1, 1 / 3, closed);
+  const x = (offset: number) => round(centerX + offset);
+
+  return [
+    `M ${x(-halfWidth)} ${round(cornerY)}`,
+    `C ${x(-reach)} ${round(top)} ${x(reach)} ${round(top)} ${x(halfWidth)} ${round(cornerY)}`,
+    `C ${x(reach)} ${round(bottom)} ${x(-reach)} ${round(bottom)} ${x(-halfWidth)} ${round(cornerY)} Z`,
+  ].join(' ');
 }
 
 function skinColor(mood: number): string {
@@ -81,9 +104,10 @@ export function faceGeometry(mood: number): FaceGeometry {
   // Midpoint of the lower lip's curve, for placing the tongue.
   const lowerLipY = (cornerY + bottomControlY) / 2;
 
-  const eyeOpen = mood >= 85 ? 0 : mood >= 78 ? (85 - mood) / 7 : 1;
+  const squint = clamp01((mood - 78) / 7);
+  const eyeClosed = squint * squint * (3 - 2 * squint);
   const angry = clamp01((35 - mood) / 35);
-  const eyeRy = 4.6 * (0.3 + 0.7 * eyeOpen) * (1 - 0.3 * angry);
+  const eyeBulge = 4.6 * (1 - 0.3 * angry);
   const browTilt = 3 + 7 * angry;
   const browPath = [
     `M -14.5 ${round(-13.5 - browTilt * 0.4)} L -4 ${round(-12.5 + browTilt * 0.6)}`,
@@ -106,8 +130,9 @@ export function faceGeometry(mood: number): FaceGeometry {
       rx: round(halfWidth * 0.55),
       ry: round(1 + laughOpen * 4),
     },
-    eyeOpen,
-    eyeRy: round(eyeRy),
+    eyeOpen: 1 - eyeClosed,
+    eyePath: [eyePath(-9, eyeClosed, eyeBulge), eyePath(9, eyeClosed, eyeBulge)].join(' '),
+    eyeStrokeWidth: round(2.6 * eyeClosed),
     browPath,
     browOpacity: clamp01((42 - mood) / 12),
     blushOpacity: clamp01((mood - 55) / 20) * 0.6,

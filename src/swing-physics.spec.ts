@@ -22,21 +22,25 @@ describe('swing physics', () => {
     expect(angleFromPointer(pivot, { x: -10, y: 10 })).toBeCloseTo(-45);
   });
 
-  it('settles on the target', () => {
-    const final = simulate({ angle: 0, velocity: 0 }, 30, 8);
+  it('settles on the target within a few seconds', () => {
+    const final = simulate({ angle: 0, velocity: 0 }, 30, 3);
 
     expect(final.angle).toBeCloseTo(30, 1);
     expect(isSettled(final, 30)).toBe(true);
   });
 
-  it('overshoots after a flick before settling', () => {
+  it('carries on a little after a flick, then eases back without wobbling', () => {
     let maxAngle = -Infinity;
-    const final = simulate({ angle: 10, velocity: 200 }, 10, 8, (motion) => {
+    let minAngle = Infinity;
+    const final = simulate({ angle: 10, velocity: 80 }, 10, 2, (motion) => {
       maxAngle = Math.max(maxAngle, motion.angle);
+      minAngle = Math.min(minAngle, motion.angle);
     });
 
-    expect(maxAngle).toBeGreaterThan(20);
-    expect(final.angle).toBeCloseTo(10, 1);
+    expect(maxAngle).toBeGreaterThan(15);
+    expect(maxAngle).toBeLessThan(22);
+    expect(minAngle).toBeGreaterThan(9);
+    expect(isSettled(final, 10)).toBe(true);
   });
 
   it('never swings past the limits', () => {
@@ -58,15 +62,15 @@ describe('swing physics', () => {
       releaseVelocity([
         { time: 0, angle: -40 },
         { time: 900, angle: 0 },
-        { time: 950, angle: 5 },
-        { time: 1000, angle: 10 },
+        { time: 950, angle: 3 },
+        { time: 1000, angle: 6 },
       ]),
-    ).toBeCloseTo(100);
+    ).toBeCloseTo(60);
     expect(
       releaseVelocity([
         { time: 0, angle: 0 },
         { time: 10, angle: 40 },
       ]),
-    ).toBe(400);
+    ).toBe(80);
   });
 });
