@@ -9,7 +9,6 @@ import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Architecture, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
-import { ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket } from 'aws-cdk-lib/aws-s3';
 import { BucketDeployment, Source, type ISource } from 'aws-cdk-lib/aws-s3-deployment';
@@ -97,13 +96,6 @@ export class MoodswingStack extends cdk.Stack {
     for (const action of ACTION_ROUTES) {
       webSocketApi.addRoute(action, { integration });
     }
-
-    // A shared integration only gets invoke permission for the first route it is bound to ($connect),
-    // so allow every route and stage of this API explicitly.
-    sessionFunction.addPermission('InvokeFromWebSocketApi', {
-      principal: new ServicePrincipal('apigateway.amazonaws.com'),
-      sourceArn: this.formatArn({ service: 'execute-api', resource: webSocketApi.apiId, resourceName: '*' }),
-    });
 
     const stage = new WebSocketStage(this, 'ProdStage', {
       webSocketApi,

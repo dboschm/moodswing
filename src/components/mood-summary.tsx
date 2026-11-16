@@ -101,7 +101,7 @@ export function MoodSummary({ snapshot, isCreator, soothing, soothed, onCopySumm
           </button>
         ) : (
           <button type="button" className="button" onClick={onSoothe} disabled={!isCreator}>
-            Soothing
+            Soothe
           </button>
         )}
       </div>

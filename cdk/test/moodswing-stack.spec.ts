@@ -4,6 +4,18 @@ import { Source } from 'aws-cdk-lib/aws-s3-deployment';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { MoodswingStack } from '../lib/moodswing-stack';
 
+const ROUTE_KEYS = [
+  '$connect',
+  '$disconnect',
+  '$default',
+  'createSession',
+  'join',
+  'vote',
+  'endSession',
+  'soothe',
+  'restartSession',
+];
+
 describe('MoodswingStack', () => {
   let template: Template;
 
@@ -45,27 +57,18 @@ describe('MoodswingStack', () => {
     const routeKeys = Object.values(template.findResources('AWS::ApiGatewayV2::Route')).map(
       (route) => route.Properties.RouteKey,
     );
-    expect(routeKeys.sort()).toEqual(
-      [
-        '$connect',
-        '$default',
-        '$disconnect',
-        'createSession',
-        'endSession',
-        'join',
-        'restartSession',
-        'soothe',
-        'vote',
-      ].sort(),
-    );
+    expect(routeKeys.sort()).toEqual([...ROUTE_KEYS].sort());
     template.resourceCountIs('AWS::ApiGatewayV2::Integration', 1);
   });
 
   it('lets API Gateway invoke the Lambda for every route, not just $connect', () => {
-    template.hasResourceProperties('AWS::Lambda::Permission', {
-      Principal: 'apigateway.amazonaws.com',
-      SourceArn: { 'Fn::Join': ['', Match.arrayWith([{ Ref: Match.stringLikeRegexp('^MoodSocketApi') }, '/*'])] },
-    });
+    const sourceArns = Object.values(template.findResources('AWS::Lambda::Permission'))
+      .filter((permission) => permission.Properties.Principal === 'apigateway.amazonaws.com')
+      .map((permission) => JSON.stringify(permission.Properties.SourceArn));
+
+    for (const routeKey of ROUTE_KEYS) {
+      expect(sourceArns.some((arn) => arn.includes(`/*${routeKey}"`))).toBe(true);
+    }
   });
 
   it('lets the Lambda push to connections', () => {
@@ -88,9 +91,9 @@ describe('MoodswingStack', () => {
     const [deployment] = Object.values(template.findResources('Custom::CDKBucketDeployment'));
     const markers = JSON.stringify(deployment.Properties.SourceMarkers);
 
+    // The URL is only known at deploy time: config.json carries a marker that resolves to the WebSocket API.
     expect(deployment.Properties.SourceObjectKeys).toHaveLength(2);
-    expect(markers).toContain('wss://');
-    expect(markers).toContain('/prod');
+    expect(markers).toMatch(/"Ref":"MoodSocketApi[0-9A-F]+"/);
   });
 
   it('serves the client privately through CloudFront', () => {
