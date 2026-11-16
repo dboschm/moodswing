@@ -61,6 +61,13 @@ describe('MoodswingStack', () => {
     template.resourceCountIs('AWS::ApiGatewayV2::Integration', 1);
   });
 
+  it('lets API Gateway invoke the Lambda for every route, not just $connect', () => {
+    template.hasResourceProperties('AWS::Lambda::Permission', {
+      Principal: 'apigateway.amazonaws.com',
+      SourceArn: { 'Fn::Join': ['', Match.arrayWith([{ Ref: Match.stringLikeRegexp('^MoodSocketApi') }, '/*'])] },
+    });
+  });
+
   it('lets the Lambda push to connections', () => {
     template.hasResourceProperties('AWS::IAM::Policy', {
       PolicyDocument: {
