@@ -17,7 +17,7 @@ import { Construct } from 'constructs';
 const projectRoot = path.join(__dirname, '../..');
 
 /** Client actions with their own API Gateway route; `ping` falls through to $default. */
-const ACTION_ROUTES = ['createSession', 'join', 'vote', 'endSession'];
+const ACTION_ROUTES = ['createSession', 'join', 'vote', 'endSession', 'soothe', 'restartSession'];
 
 export interface MoodswingStackProps extends cdk.StackProps {
   /** The built web app. Defaults to running `npm run build` in the project root. */

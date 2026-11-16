@@ -1,15 +1,18 @@
+import { useRef } from 'react';
 import { averageMood } from '../../shared/mood';
 import { AppShell } from '../components/app-shell';
-import { ClosedSign, GhostSwing, MoodArc } from '../components/mood-arc';
+import { GhostSwing, MoodArc } from '../components/mood-arc';
 import { MoodScene } from '../components/mood-scene';
 import { MoodSummary } from '../components/mood-summary';
 import { SessionHeader } from '../components/session-header';
 import { Swing } from '../components/swing';
 import { copyText } from '../browser-clipboard';
-import { useCreateSession } from '../hooks/use-create-session';
 import { useMoodSession } from '../hooks/use-mood-session';
-import { useConnectionStatus } from '../hooks/use-mood-socket';
-import { sessionPath, sessionUrl } from '../session-route';
+import { SOOTHED_MOOD, useSoothing } from '../hooks/use-soothing';
+import { sessionUrl } from '../session-route';
+import { SOOTHING_SPRING } from '../swing-physics';
+
+const NO_MOODS: readonly number[] = [];
 
 interface SessionScreenProps {
   code: string;
@@ -18,11 +21,21 @@ interface SessionScreenProps {
 
 export function SessionScreen({ code, onNavigate }: SessionScreenProps) {
   const session = useMoodSession(code);
-  const status = useConnectionStatus();
-  const { create, creating } = useCreateSession((newCode) => onNavigate(sessionPath(newCode)));
   const { snapshot, myMood } = session;
   const closed = snapshot?.status === 'closed';
-  const average = snapshot ? averageMood(snapshot.moods) : null;
+  const moods = snapshot?.moods ?? NO_MOODS;
+  // Once the creator soothes, every mood on every screen swings into Content; the results stay as voted.
+  const soothing = snapshot?.soothedAt !== undefined;
+  const arrivalRef = useRef<{ round: number; soothed: boolean } | null>(null);
+
+  if (snapshot && arrivalRef.current === null) {
+    arrivalRef.current = { round: snapshot.round, soothed: soothing };
+  }
+
+  // Opening a session that was soothed before you arrived shows everyone at rest straight away.
+  const soothedOnArrival = arrivalRef.current?.soothed === true && arrivalRef.current.round === snapshot?.round;
+  const shown = useSoothing(moods, soothing, soothedOnArrival);
+  const average = averageMood(shown.moods);
   const goHome = () => onNavigate('/');
 
   if (session.notFound) {
@@ -51,21 +64,32 @@ export function SessionScreen({ code, onNavigate }: SessionScreenProps) {
           code={code}
           snapshot={snapshot}
           isCreator={session.isCreator}
-          status={status}
           onCopyLink={() => copyText(sessionUrl(code))}
           onEndSession={session.endSession}
         />
       }
     >
       <MoodScene label={`Mood swing for session ${code}`} note={note}>
-        {closed && <ClosedSign />}
-        <MoodArc moods={snapshot?.moods ?? []} />
+        <MoodArc moods={shown.moods} ringsFrom={moods} />
         {average !== null && <GhostSwing mood={average} />}
-        <Swing mood={myMood} onCommit={session.vote} disabled={closed} />
+        <Swing
+          mood={soothing ? SOOTHED_MOOD : myMood}
+          spring={soothing && !soothedOnArrival ? SOOTHING_SPRING : undefined}
+          onCommit={session.vote}
+          disabled={closed}
+        />
       </MoodScene>
 
       {closed && snapshot && (
-        <MoodSummary snapshot={snapshot} creating={creating} onCopySummary={copyText} onStartNew={create} />
+        <MoodSummary
+          snapshot={snapshot}
+          isCreator={session.isCreator}
+          soothing={soothing}
+          soothed={soothing && shown.settled}
+          onCopySummary={copyText}
+          onSoothe={session.soothe}
+          onRestart={session.restartSession}
+        />
       )}
 
       {session.notice && (

@@ -1,6 +1,7 @@
 import { useId } from 'react';
 import { moodBand, toMood } from '../../shared/mood';
 import { useSwing } from '../hooks/use-swing';
+import type { Spring } from '../swing-physics';
 import { MoodFace } from './mood-face';
 import { PIVOT, PLANK_HEIGHT, PLANK_WIDTH, ROPE_LENGTH, ROPE_SPREAD, arcPath, pointOnRope, ropesPath, seatPosition } from './scene-geometry';
 
@@ -10,6 +11,8 @@ interface SwingProps {
   onCommit?: (mood: number) => void;
   disabled?: boolean;
   label?: string;
+  /** How the swing moves when `mood` changes. */
+  spring?: Spring;
 }
 
 const FACE_RADIUS = 36;
@@ -82,8 +85,8 @@ function DragHint({ angle }: { angle: number }) {
  * The draggable swing. The face on the seat shows the mood under the swing
  * while it moves; letting go commits that mood.
  */
-export function Swing({ mood, onCommit, disabled = false, label = 'Your mood' }: SwingProps) {
-  const swing = useSwing({ mood, onCommit, disabled });
+export function Swing({ mood, onCommit, disabled = false, label = 'Your mood', spring }: SwingProps) {
+  const swing = useSwing({ mood, onCommit, disabled, spring });
   const seat = seatPosition(swing.angle);
   const ropeBottom = (side: -1 | 1) => ({ x: seat.x + side * ROPE_SPREAD, y: seat.y });
   const faceCenter = { x: seat.x, y: seat.y - PLANK_HEIGHT / 2 - FACE_RADIUS + 1 };

@@ -9,7 +9,7 @@ export const MAX_ANGLE_DEG = 50;
 /** Which way the swing goes for laughing: -1 is left, 1 is right. */
 export const LAUGHING_SIDE: -1 | 1 = -1;
 
-export type MoodBand = 'laughing' | 'happy' | 'meh' | 'grumpy' | 'angry';
+export type MoodBand = 'laughing' | 'happy' | 'content' | 'meh' | 'angry';
 
 export interface MoodBandInfo {
   band: MoodBand;
@@ -25,8 +25,8 @@ export interface MoodBandInfo {
 export const MOOD_BANDS: readonly MoodBandInfo[] = [
   { band: 'laughing', label: 'Laughing', emoji: '😂', min: 80, sample: 95 },
   { band: 'happy', label: 'Happy', emoji: '😄', min: 60, sample: 70 },
-  { band: 'meh', label: 'Meh', emoji: '😐', min: 40, sample: 50 },
-  { band: 'grumpy', label: 'Grumpy', emoji: '😕', min: 20, sample: 30 },
+  { band: 'content', label: 'Content', emoji: '🙂', min: 45, sample: 52 },
+  { band: 'meh', label: 'Meh', emoji: '😐', min: 20, sample: 32 },
   { band: 'angry', label: 'Angry', emoji: '😠', min: 0, sample: 5 },
 ];
 

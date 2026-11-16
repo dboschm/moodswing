@@ -46,6 +46,25 @@ export class MemorySessionStore implements SessionStore {
     }
   }
 
+  async sootheSession(code: string, soothedAt: number): Promise<void> {
+    const session = this.sessions.get(code);
+
+    if (session) {
+      session.meta = { ...session.meta, soothedAt };
+    }
+  }
+
+  async restartSession(code: string, round: number, expiresAt: number): Promise<void> {
+    const session = this.sessions.get(code);
+
+    if (session) {
+      const { closedAt: _closedAt, soothedAt: _soothedAt, ...meta } = session.meta;
+
+      session.meta = { ...meta, status: 'open', round, expiresAt };
+      session.votes.clear();
+    }
+  }
+
   async attachConnection(connectionId: string, code: string): Promise<string | undefined> {
     const previous = this.connections.get(connectionId);
 

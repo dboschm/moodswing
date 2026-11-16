@@ -7,6 +7,7 @@ import {
   releaseVelocity,
   stepSwing,
   type AngleSample,
+  type Spring,
   type SwingMotion,
 } from '../swing-physics';
 
@@ -20,6 +21,8 @@ interface UseSwingOptions {
   mood: number | null;
   disabled?: boolean;
   onCommit?: (mood: number) => void;
+  /** How the swing moves to a new mood; defaults to a quick settle. */
+  spring?: Spring;
 }
 
 export interface SwingControls {
@@ -57,7 +60,7 @@ function pointerAngle(event: PointerEvent<SVGGElement>): number | null {
 }
 
 /** Drag, keyboard and spring physics for the mood swing. */
-export function useSwing({ mood, disabled = false, onCommit }: UseSwingOptions): SwingControls {
+export function useSwing({ mood, disabled = false, onCommit, spring }: UseSwingOptions): SwingControls {
   const initialTarget = mood === null ? 0 : moodToAngle(mood);
   const motionRef = useRef<SwingMotion>({ angle: initialTarget, velocity: 0 });
   const targetRef = useRef(initialTarget);
@@ -70,6 +73,8 @@ export function useSwing({ mood, disabled = false, onCommit }: UseSwingOptions):
   const commitTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onCommitRef = useRef(onCommit);
   onCommitRef.current = onCommit;
+  const springRef = useRef(spring);
+  springRef.current = spring;
   const handleRef = useRef<SVGGElement>(null);
 
   // iOS Safari may ignore touch-action on SVG children; a non-passive touchstart
@@ -113,7 +118,7 @@ export function useSwing({ mood, disabled = false, onCommit }: UseSwingOptions):
 
     const tick = (time: number) => {
       const elapsed = lastFrameRef.current === undefined ? 0 : (time - lastFrameRef.current) / 1000;
-      const next = stepSwing(motionRef.current, targetRef.current, elapsed);
+      const next = stepSwing(motionRef.current, targetRef.current, elapsed, springRef.current);
 
       lastFrameRef.current = time;
 

@@ -96,7 +96,7 @@ describe('SessionService', () => {
     await send('a', { action: 'join', code, voterId: VOTER_A });
     await send('b', { action: 'join', code, voterId: VOTER_B });
 
-    expect(broadcaster.inbox.get('a')).toContainEqual({ type: 'joined', code, yourMood: null });
+    expect(broadcaster.inbox.get('a')).toContainEqual({ type: 'joined', code, round: 0, yourMood: null });
 
     await send('a', { action: 'vote', code, voterId: VOTER_A, mood: 90 });
     await send('b', { action: 'vote', code, voterId: VOTER_B, mood: 10 });
@@ -123,7 +123,7 @@ describe('SessionService', () => {
     await service.handleDisconnect('a');
     await send('a2', { action: 'join', code, voterId: VOTER_A });
 
-    expect(broadcaster.inbox.get('a2')).toContainEqual({ type: 'joined', code, yourMood: 64 });
+    expect(broadcaster.inbox.get('a2')).toContainEqual({ type: 'joined', code, round: 0, yourMood: 64 });
   });
 
   it('only lets the creator end the session, then locks votes', async () => {
@@ -142,6 +142,55 @@ describe('SessionService', () => {
     await send('a', { action: 'vote', code, voterId: VOTER_A, mood: 10 });
     expect(broadcaster.last('a')).toMatchObject({ type: 'error', reason: 'SESSION_CLOSED' });
     expect((await store.loadSession(code))?.votes.get(VOTER_A)).toBe(70);
+  });
+
+  it('only lets the creator soothe, and only once the session has ended', async () => {
+    const { code, creatorToken } = await createSession();
+    await send('a', { action: 'join', code, voterId: VOTER_A });
+
+    await send('creator', { action: 'soothe', code, creatorToken });
+    expect(broadcaster.last('creator')).toMatchObject({ type: 'error', reason: 'SESSION_OPEN', action: 'soothe' });
+
+    await send('creator', { action: 'endSession', code, creatorToken });
+    await send('a', { action: 'soothe', code, creatorToken: 'x'.repeat(43) });
+    expect(broadcaster.last('a')).toMatchObject({ type: 'error', reason: 'FORBIDDEN', action: 'soothe' });
+
+    now += 5_000;
+    const soothedAt = now;
+    await send('creator', { action: 'soothe', code, creatorToken });
+    expect(broadcaster.lastSnapshot('a')).toMatchObject({ status: 'closed', soothedAt });
+
+    now += 5_000;
+    await send('creator', { action: 'soothe', code, creatorToken });
+    expect(broadcaster.lastSnapshot('a')?.soothedAt).toBe(soothedAt);
+  });
+
+  it('restarts an ended session under the same code with no moods', async () => {
+    const { code, creatorToken } = await createSession();
+    await send('a', { action: 'join', code, voterId: VOTER_A });
+    await send('a', { action: 'vote', code, voterId: VOTER_A, mood: 70 });
+
+    await send('creator', { action: 'restartSession', code, creatorToken });
+    expect(broadcaster.last('creator')).toMatchObject({ type: 'error', reason: 'SESSION_OPEN' });
+
+    await send('creator', { action: 'endSession', code, creatorToken });
+    await send('creator', { action: 'soothe', code, creatorToken });
+    await send('a', { action: 'restartSession', code, creatorToken: 'x'.repeat(43) });
+    expect(broadcaster.last('a')).toMatchObject({ type: 'error', reason: 'FORBIDDEN' });
+
+    now += 23 * 60 * 60 * 1000;
+    await send('creator', { action: 'restartSession', code, creatorToken });
+    const snapshot = broadcaster.lastSnapshot('a');
+    expect(snapshot).toMatchObject({ code, status: 'open', round: 1, moods: [] });
+    expect(snapshot).not.toHaveProperty('closedAt');
+    expect(snapshot).not.toHaveProperty('soothedAt');
+
+    // The old vote is gone for good: rejoining finds no mood, and the session lives on past its first day.
+    now += 2 * 60 * 60 * 1000;
+    await send('a2', { action: 'join', code, voterId: VOTER_A });
+    expect(broadcaster.inbox.get('a2')).toContainEqual({ type: 'joined', code, round: 1, yourMood: null });
+    await send('a2', { action: 'vote', code, voterId: VOTER_A, mood: 20 });
+    expect(broadcaster.lastSnapshot('a2')).toMatchObject({ moods: [20], round: 1 });
   });
 
   it('caps the number of voters but lets existing voters change their mood', async () => {

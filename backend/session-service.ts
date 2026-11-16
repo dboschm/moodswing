@@ -42,7 +42,9 @@ function toSnapshot(state: SessionState): SessionSnapshot {
     moods: [...state.votes.values()].sort((a, b) => a - b),
     online: state.connectionIds.length,
     createdAt: meta.createdAt,
+    round: meta.round,
     ...(meta.closedAt === undefined ? {} : { closedAt: meta.closedAt }),
+    ...(meta.soothedAt === undefined ? {} : { soothedAt: meta.soothedAt }),
   };
 }
 
@@ -94,6 +96,10 @@ export class SessionService {
         return this.vote(connectionId, message.code, message.voterId, message.mood);
       case 'endSession':
         return this.endSession(connectionId, message.code, message.creatorToken);
+      case 'soothe':
+        return this.soothe(connectionId, message.code, message.creatorToken);
+      case 'restartSession':
+        return this.restartSession(connectionId, message.code, message.creatorToken);
       case 'ping':
         return this.reply(connectionId, { type: 'pong' });
     }
@@ -117,6 +123,7 @@ export class SessionService {
         code,
         status: 'open',
         createdAt,
+        round: 0,
         creatorTokenHash: hashCreatorToken(creatorToken),
         expiresAt: toEpochSeconds(createdAt) + SESSION_TTL_SECONDS,
       });
@@ -148,7 +155,12 @@ export class SessionService {
       state.connectionIds.push(connectionId);
     }
 
-    await this.reply(connectionId, { type: 'joined', code, yourMood: state.votes.get(voterId) ?? null });
+    await this.reply(connectionId, {
+      type: 'joined',
+      code,
+      round: state.meta.round,
+      yourMood: state.votes.get(voterId) ?? null,
+    });
     await this.broadcastSnapshot(state);
 
     const previousState = previousCode && previousCode !== code ? await this.loadLiveSession(previousCode) : null;
@@ -176,21 +188,15 @@ export class SessionService {
       return;
     }
 
-    await this.store.putVote(code, voterId, mood, this.now(), state.meta.expiresAt);
+    await this.store.putVote(code, voterId, mood, state.meta.round, this.now(), state.meta.expiresAt);
     state.votes.set(voterId, mood);
     await this.broadcastSnapshot(state, connectionId);
   }
 
   private async endSession(connectionId: string, code: string, creatorToken: string): Promise<void> {
-    const state = await this.loadLiveSession(code);
+    const state = await this.loadForCreator(connectionId, 'endSession', code, creatorToken);
 
     if (!state) {
-      await this.fail(connectionId, 'SESSION_NOT_FOUND', 'endSession', code);
-      return;
-    }
-
-    if (!creatorTokenMatches(creatorToken, state.meta.creatorTokenHash)) {
-      await this.fail(connectionId, 'FORBIDDEN', 'endSession', code);
       return;
     }
 
@@ -202,6 +208,74 @@ export class SessionService {
     }
 
     await this.broadcastSnapshot(state, connectionId);
+  }
+
+  /** Lets every swing settle into Content; only once the session has ended. */
+  private async soothe(connectionId: string, code: string, creatorToken: string): Promise<void> {
+    const state = await this.loadForCreator(connectionId, 'soothe', code, creatorToken);
+
+    if (!state) {
+      return;
+    }
+
+    if (state.meta.status === 'open') {
+      await this.fail(connectionId, 'SESSION_OPEN', 'soothe', code);
+      return;
+    }
+
+    if (state.meta.soothedAt === undefined) {
+      const soothedAt = this.now();
+
+      await this.store.sootheSession(code, soothedAt);
+      state.meta = { ...state.meta, soothedAt };
+    }
+
+    await this.broadcastSnapshot(state, connectionId);
+  }
+
+  /** Reopens an ended session under the same code, with no moods, so the link can be reused. */
+  private async restartSession(connectionId: string, code: string, creatorToken: string): Promise<void> {
+    const state = await this.loadForCreator(connectionId, 'restartSession', code, creatorToken);
+
+    if (!state) {
+      return;
+    }
+
+    if (state.meta.status === 'open') {
+      await this.fail(connectionId, 'SESSION_OPEN', 'restartSession', code);
+      return;
+    }
+
+    const round = state.meta.round + 1;
+    const expiresAt = toEpochSeconds(this.now()) + SESSION_TTL_SECONDS;
+    const { closedAt: _closedAt, soothedAt: _soothedAt, ...meta } = state.meta;
+
+    await this.store.restartSession(code, round, expiresAt);
+    state.meta = { ...meta, status: 'open', round, expiresAt };
+    state.votes.clear();
+    await this.broadcastSnapshot(state, connectionId);
+  }
+
+  /** Loads a session for an action only its creator may take, telling the sender when they can't. */
+  private async loadForCreator(
+    connectionId: string,
+    action: ClientAction,
+    code: string,
+    creatorToken: string,
+  ): Promise<SessionState | null> {
+    const state = await this.loadLiveSession(code);
+
+    if (!state) {
+      await this.fail(connectionId, 'SESSION_NOT_FOUND', action, code);
+      return null;
+    }
+
+    if (!creatorTokenMatches(creatorToken, state.meta.creatorTokenHash)) {
+      await this.fail(connectionId, 'FORBIDDEN', action, code);
+      return null;
+    }
+
+    return state;
   }
 
   /** DynamoDB removes expired items lazily, so expiry is also enforced here. */

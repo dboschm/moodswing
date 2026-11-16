@@ -5,7 +5,7 @@ import { useMoodSocket } from './use-mood-socket';
 
 const NOTICES: Partial<Record<ErrorReason, string>> = {
   SESSION_FULL: 'This session is full, so your mood could not be added.',
-  FORBIDDEN: 'Only the person who started the session can end it.',
+  FORBIDDEN: 'Only the person who started the session can do that.',
   INTERNAL: 'Something went wrong. Please try again.',
   INVALID_MESSAGE: 'Something went wrong. Please try again.',
 };
@@ -19,6 +19,8 @@ export interface MoodSession {
   isCreator: boolean;
   vote: (mood: number) => void;
   endSession: () => void;
+  soothe: () => void;
+  restartSession: () => void;
   dismissNotice: () => void;
 }
 
@@ -32,10 +34,20 @@ export function useMoodSession(code: string): MoodSession {
   const [notFound, setNotFound] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const myMoodRef = useRef<number | null>(null);
+  const roundRef = useRef<number | null>(null);
 
   useEffect(() => {
     const join = () => socket.send({ action: 'join', code, voterId });
     const stopOpen = socket.onOpen(join);
+    // The creator restarting the session starts a new round where nobody has a mood yet.
+    const enterRound = (round: number) => {
+      if (roundRef.current !== null && roundRef.current !== round) {
+        myMoodRef.current = null;
+        setMyMood(null);
+      }
+
+      roundRef.current = round;
+    };
     const stopMessages = socket.onMessage((message) => {
       switch (message.type) {
         case 'joined':
@@ -44,6 +56,7 @@ export function useMoodSession(code: string): MoodSession {
           }
 
           setNotFound(false);
+          enterRound(message.round);
 
           if (myMoodRef.current === null) {
             myMoodRef.current = message.yourMood;
@@ -55,6 +68,7 @@ export function useMoodSession(code: string): MoodSession {
           return;
         case 'snapshot':
           if (message.snapshot.code === code) {
+            enterRound(message.snapshot.round);
             setSnapshot(message.snapshot);
           }
           return;
@@ -94,11 +108,17 @@ export function useMoodSession(code: string): MoodSession {
     [socket, code, voterId],
   );
 
-  const endSession = useCallback(() => {
-    if (creatorToken) {
-      socket.send({ action: 'endSession', code, creatorToken });
-    }
-  }, [socket, code, creatorToken]);
+  const sendAsCreator = useCallback(
+    (action: 'endSession' | 'soothe' | 'restartSession') => {
+      if (creatorToken) {
+        socket.send({ action, code, creatorToken });
+      }
+    },
+    [socket, code, creatorToken],
+  );
+  const endSession = useCallback(() => sendAsCreator('endSession'), [sendAsCreator]);
+  const soothe = useCallback(() => sendAsCreator('soothe'), [sendAsCreator]);
+  const restartSession = useCallback(() => sendAsCreator('restartSession'), [sendAsCreator]);
 
   const dismissNotice = useCallback(() => setNotice(null), []);
 
@@ -110,6 +130,8 @@ export function useMoodSession(code: string): MoodSession {
     isCreator: creatorToken !== null,
     vote,
     endSession,
+    soothe,
+    restartSession,
     dismissNotice,
   };
 }

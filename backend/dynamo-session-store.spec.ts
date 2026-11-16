@@ -24,6 +24,7 @@ describe('DynamoSessionStore', () => {
       code: 'MS-AAAAAA',
       status: 'open' as const,
       createdAt: 1,
+      round: 0,
       creatorTokenHash: 'hash',
       expiresAt: 100,
     };
@@ -32,7 +33,15 @@ describe('DynamoSessionStore', () => {
     expect(await store.createSession(meta)).toBe(true);
     expect(dynamo.commandCalls(PutCommand)[0].args[0].input).toEqual({
       TableName: TABLE,
-      Item: { pk: 'SESSION#MS-AAAAAA', sk: 'META', status: 'open', createdAt: 1, creatorTokenHash: 'hash', expiresAt: 100 },
+      Item: {
+        pk: 'SESSION#MS-AAAAAA',
+        sk: 'META',
+        status: 'open',
+        createdAt: 1,
+        round: 0,
+        creatorTokenHash: 'hash',
+        expiresAt: 100,
+      },
       ConditionExpression: 'attribute_not_exists(pk)',
     });
   });
@@ -41,26 +50,46 @@ describe('DynamoSessionStore', () => {
     dynamo.on(PutCommand).rejects(new Error('throttled'));
 
     await expect(
-      store.createSession({ code: 'MS-AAAAAA', status: 'open', createdAt: 1, creatorTokenHash: 'h', expiresAt: 1 }),
+      store.createSession({ code: 'MS-AAAAAA', status: 'open', createdAt: 1, round: 0, creatorTokenHash: 'h', expiresAt: 1 }),
     ).rejects.toThrow('throttled');
   });
 
-  it('loads metadata, votes and connections across pages', async () => {
+  it('loads metadata, current-round votes and connections across pages', async () => {
     dynamo
       .on(QueryCommand)
       .resolvesOnce({
         Items: [
           { pk: 'SESSION#MS-AAAAAA', sk: 'CONN#c1', expiresAt: 9 },
-          { pk: 'SESSION#MS-AAAAAA', sk: 'META', status: 'closed', createdAt: 1, closedAt: 2, creatorTokenHash: 'h', expiresAt: 9 },
+          { pk: 'SESSION#MS-AAAAAA', sk: 'VOTE#voter-0', mood: 10, round: 0 },
+          {
+            pk: 'SESSION#MS-AAAAAA',
+            sk: 'META',
+            status: 'closed',
+            createdAt: 1,
+            round: 1,
+            closedAt: 2,
+            soothedAt: 3,
+            creatorTokenHash: 'h',
+            expiresAt: 9,
+          },
         ],
         LastEvaluatedKey: { pk: 'SESSION#MS-AAAAAA', sk: 'META' },
       })
-      .resolvesOnce({ Items: [{ pk: 'SESSION#MS-AAAAAA', sk: 'VOTE#voter-1', mood: 42 }] });
+      .resolvesOnce({ Items: [{ pk: 'SESSION#MS-AAAAAA', sk: 'VOTE#voter-1', mood: 42, round: 1 }] });
 
     const state = await store.loadSession('MS-AAAAAA');
 
     expect(state).toEqual({
-      meta: { code: 'MS-AAAAAA', status: 'closed', createdAt: 1, closedAt: 2, creatorTokenHash: 'h', expiresAt: 9 },
+      meta: {
+        code: 'MS-AAAAAA',
+        status: 'closed',
+        createdAt: 1,
+        round: 1,
+        closedAt: 2,
+        soothedAt: 3,
+        creatorTokenHash: 'h',
+        expiresAt: 9,
+      },
       votes: new Map([['voter-1', 42]]),
       connectionIds: ['c1'],
     });
@@ -79,12 +108,13 @@ describe('DynamoSessionStore', () => {
   it('stores one vote item per voter', async () => {
     dynamo.on(PutCommand).resolves({});
 
-    await store.putVote('MS-AAAAAA', 'voter-1', 77, 5, 9);
+    await store.putVote('MS-AAAAAA', 'voter-1', 77, 2, 5, 9);
 
     expect(dynamo.commandCalls(PutCommand)[0].args[0].input.Item).toEqual({
       pk: 'SESSION#MS-AAAAAA',
       sk: 'VOTE#voter-1',
       mood: 77,
+      round: 2,
       updatedAt: 5,
       expiresAt: 9,
     });
@@ -98,6 +128,31 @@ describe('DynamoSessionStore', () => {
     expect(dynamo.commandCalls(UpdateCommand)[0].args[0].input).toMatchObject({
       Key: { pk: 'SESSION#MS-AAAAAA', sk: 'META' },
       ExpressionAttributeValues: { ':closed': 'closed', ':closedAt': 7 },
+    });
+  });
+
+  it('marks a session as soothed', async () => {
+    dynamo.on(UpdateCommand).resolves({});
+
+    await store.sootheSession('MS-AAAAAA', 8);
+
+    expect(dynamo.commandCalls(UpdateCommand)[0].args[0].input).toMatchObject({
+      Key: { pk: 'SESSION#MS-AAAAAA', sk: 'META' },
+      UpdateExpression: 'SET soothedAt = :soothedAt',
+      ExpressionAttributeValues: { ':soothedAt': 8 },
+    });
+  });
+
+  it('restarts a session as a new round in a single write', async () => {
+    dynamo.on(UpdateCommand).resolves({});
+
+    await store.restartSession('MS-AAAAAA', 2, 500);
+
+    expect(dynamo.commandCalls(UpdateCommand)).toHaveLength(1);
+    expect(dynamo.commandCalls(UpdateCommand)[0].args[0].input).toMatchObject({
+      Key: { pk: 'SESSION#MS-AAAAAA', sk: 'META' },
+      UpdateExpression: expect.stringContaining('REMOVE closedAt, soothedAt'),
+      ExpressionAttributeValues: { ':open': 'open', ':round': 2, ':expiresAt': 500 },
     });
   });
 

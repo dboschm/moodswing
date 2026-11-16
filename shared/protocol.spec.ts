@@ -35,6 +35,13 @@ describe('parseClientMessage', () => {
         JSON.stringify({ action: 'endSession', code: 'MS-K7Q4XZ', creatorToken: 'a'.repeat(43) }),
       ),
     ).toEqual({ action: 'endSession', code: 'MS-K7Q4XZ', creatorToken: 'a'.repeat(43) });
+    for (const action of ['soothe', 'restartSession'] as const) {
+      expect(parseClientMessage(JSON.stringify({ action, code: 'MS-K7Q4XZ', creatorToken: 'a'.repeat(43) }))).toEqual({
+        action,
+        code: 'MS-K7Q4XZ',
+        creatorToken: 'a'.repeat(43),
+      });
+    }
   });
 
   it('drops extra fields', () => {
@@ -50,6 +57,7 @@ describe('parseClientMessage', () => {
     expect(parseClientMessage(JSON.stringify({ action: 'join', code: 'nope', voterId }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ action: 'join', code: 'MS-K7Q4XZ', voterId: 'x' }))).toBeNull();
     expect(parseClientMessage(JSON.stringify({ action: 'endSession', code: 'MS-K7Q4XZ' }))).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ action: 'soothe', code: 'MS-K7Q4XZ', creatorToken: 'short' }))).toBeNull();
   });
 
   it('rejects oversized messages', () => {

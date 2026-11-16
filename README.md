@@ -2,7 +2,7 @@
 
 A team mood meter shaped like a swing.
 
-Start a session and share the link. Everyone drags their own swing towards **laughing** (left) or **angry** (right), and the emoji riding the swing morphs smoothly between the two. Every mood shows up live and anonymously for the whole team, and a see-through "team" swing hangs at the average. When you're done, the person who started the session ends it and everyone sees the final results.
+Start a session and share the link. Everyone drags their own swing towards **laughing** (left) or **angry** (right), and the emoji riding the swing morphs smoothly between the two. Every mood shows up live and anonymously for the whole team, and a see-through "team" swing hangs at the average. When you're done, the person who started the session ends it and everyone sees the final results. "moodswing soothing" then lets go of every swing on everyone's screen and lets them all swing gently into **content**. "Start again" reopens the same session with no moods, so the link you already shared keeps working.
 
 ![A mood session with three teammates](docs/screenshot.png)
 
@@ -15,7 +15,7 @@ Browser ──https──> CloudFront ──> S3 (React app + config.json)
 ```
 
 - **Client** (`src/`): React 18 + Vite. The swing diagram and the emoji faces are hand-built SVG. Dragging uses pointer events, and on release a damped spring wobbles the swing before it settles on the chosen mood. The arrow keys work too.
-- **Backend** (`backend/`): a single Lambda handles every WebSocket route. Sessions, votes and connections live in one DynamoDB table and expire after 24 hours through TTL.
+- **Backend** (`backend/`): a single Lambda handles every WebSocket route. Sessions, votes and connections live in one DynamoDB table and expire after 24 hours through TTL. Restarting a session bumps its round, so earlier votes stop counting without deleting them.
 - **Shared** (`shared/`): the mood scale and the message protocol that client and Lambda both import.
 - **Infrastructure** (`cdk/`): one CDK stack that creates the table, Lambda, WebSocket API, S3 bucket, CloudFront distribution and the deployment of the built client.
 

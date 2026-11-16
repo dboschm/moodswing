@@ -1,5 +1,4 @@
 import { moodToAngle } from '../../shared/mood';
-import type { Point } from '../swing-physics';
 import { MoodFace } from './mood-face';
 import { Plank } from './swing';
 import { ROPE_LENGTH, ropesPath, seatPosition } from './scene-geometry';
@@ -7,23 +6,19 @@ import { ROPE_LENGTH, ropesPath, seatPosition } from './scene-geometry';
 const VOTE_FACE_RADIUS = 11;
 const RING_RADII = [ROPE_LENGTH + 52, ROPE_LENGTH + 76, ROPE_LENGTH + 100];
 
-export interface PlacedVote {
-  mood: number;
-  position: Point;
-}
-
 /**
- * Puts each vote on an arc below the swing at its mood's angle, pushing faces
- * outward onto further rings when they would overlap.
+ * Picks a ring below the swing for each vote, pushing faces outward when they
+ * would overlap a neighbour at a similar angle. Rings come back in the order of `moods`.
  */
-export function placeVotes(moods: readonly number[]): PlacedVote[] {
+export function assignRings(moods: readonly number[]): number[] {
   const lastAngleOnRing: (number | undefined)[] = RING_RADII.map(() => undefined);
   const minGapDeg = (radius: number) => ((2 * VOTE_FACE_RADIUS + 2) / radius) * (180 / Math.PI);
+  const rings = moods.map(() => 0);
 
-  return [...moods]
-    .sort((a, b) => moodToAngle(a) - moodToAngle(b))
-    .map((mood) => {
-      const angle = moodToAngle(mood);
+  moods
+    .map((mood, index) => ({ index, angle: moodToAngle(mood) }))
+    .sort((a, b) => a.angle - b.angle)
+    .forEach(({ index, angle }) => {
       const free = RING_RADII.findIndex((radius, ring) => {
         const last = lastAngleOnRing[ring];
         return last === undefined || angle - last >= minGapDeg(radius);
@@ -33,14 +28,16 @@ export function placeVotes(moods: readonly number[]): PlacedVote[] {
         free >= 0
           ? free
           : RING_RADII.reduce(
-              (best, _radius, index) =>
-                (lastAngleOnRing[index] ?? -Infinity) < (lastAngleOnRing[best] ?? -Infinity) ? index : best,
+              (best, _radius, ringIndex) =>
+                (lastAngleOnRing[ringIndex] ?? -Infinity) < (lastAngleOnRing[best] ?? -Infinity) ? ringIndex : best,
               0,
             );
 
       lastAngleOnRing[ring] = angle;
-      return { mood, position: seatPosition(angle, RING_RADII[ring]) };
+      rings[index] = ring;
     });
+
+  return rings;
 }
 
 /** A faint outline of one teammate's swing at their mood. */
@@ -55,8 +52,16 @@ function VoteSwing({ mood }: { mood: number }) {
   );
 }
 
+interface MoodArcProps {
+  moods: readonly number[];
+  /** Moods that pick each face's ring, so faces keep their ring while `moods` swing. */
+  ringsFrom?: readonly number[];
+}
+
 /** Everyone's anonymous mood: a faint swing at its angle and a small face below the swing's path. */
-export function MoodArc({ moods }: { moods: readonly number[] }) {
+export function MoodArc({ moods, ringsFrom = moods }: MoodArcProps) {
+  const rings = assignRings(ringsFrom);
+
   return (
     <g className="mood-arc">
       <g className="vote-swing" aria-hidden="true">
@@ -64,9 +69,11 @@ export function MoodArc({ moods }: { moods: readonly number[] }) {
           <VoteSwing key={index} mood={mood} />
         ))}
       </g>
-      {placeVotes(moods).map(({ mood, position }, index) => (
-        <MoodFace key={index} mood={mood} x={position.x} y={position.y} radius={VOTE_FACE_RADIUS} />
-      ))}
+      {moods.map((mood, index) => {
+        const position = seatPosition(moodToAngle(mood), RING_RADII[rings[index]]);
+
+        return <MoodFace key={index} mood={mood} x={position.x} y={position.y} radius={VOTE_FACE_RADIUS} />;
+      })}
     </g>
   );
 }
@@ -83,18 +90,6 @@ export function GhostSwing({ mood }: { mood: number }) {
       <Plank x={seat.x} y={seat.y} className="ghost-swing__plank" />
       <text x={seat.x} y={seat.y + 3.5} textAnchor="middle" className="ghost-swing__label">
         TEAM
-      </text>
-    </g>
-  );
-}
-
-/** Marks the diagram once the session has ended. */
-export function ClosedSign() {
-  return (
-    <g className="closed-sign" aria-hidden="true">
-      <rect x={16} y={12} width={104} height={32} rx={4} />
-      <text x={68} y={34} textAnchor="middle" className="closed-sign__text">
-        CLOSED
       </text>
     </g>
   );

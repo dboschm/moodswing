@@ -22,6 +22,8 @@ export type ClientMessage =
   | { action: 'join'; code: string; voterId: string }
   | { action: 'vote'; code: string; voterId: string; mood: number }
   | { action: 'endSession'; code: string; creatorToken: string }
+  | { action: 'soothe'; code: string; creatorToken: string }
+  | { action: 'restartSession'; code: string; creatorToken: string }
   | { action: 'ping' };
 
 export type ClientAction = ClientMessage['action'];
@@ -36,12 +38,17 @@ export interface SessionSnapshot {
   /** Connections currently in the session. */
   online: number;
   createdAt: number;
+  /** Goes up each time the creator starts the session again with no moods. */
+  round: number;
   closedAt?: number;
+  /** When the creator let every swing settle into Content after closing. */
+  soothedAt?: number;
 }
 
 export type ErrorReason =
   | 'SESSION_NOT_FOUND'
   | 'SESSION_CLOSED'
+  | 'SESSION_OPEN'
   | 'SESSION_FULL'
   | 'FORBIDDEN'
   | 'INVALID_MESSAGE'
@@ -49,7 +56,7 @@ export type ErrorReason =
 
 export type ServerMessage =
   | { type: 'sessionCreated'; code: string; creatorToken: string }
-  | { type: 'joined'; code: string; yourMood: number | null }
+  | { type: 'joined'; code: string; round: number; yourMood: number | null }
   | { type: 'snapshot'; snapshot: SessionSnapshot }
   | { type: 'pong' }
   | { type: 'error'; reason: ErrorReason; action?: ClientAction; code?: string };
@@ -109,8 +116,10 @@ export function parseClientMessage(raw: string): ClientMessage | null {
         ? { action: 'vote', code: data.code, voterId: data.voterId, mood: data.mood }
         : null;
     case 'endSession':
+    case 'soothe':
+    case 'restartSession':
       return isSessionCode(data.code) && isCreatorToken(data.creatorToken)
-        ? { action: 'endSession', code: data.code, creatorToken: data.creatorToken }
+        ? { action: data.action, code: data.code, creatorToken: data.creatorToken }
         : null;
     default:
       return null;

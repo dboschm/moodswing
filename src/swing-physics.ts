@@ -11,6 +11,13 @@ export interface SwingMotion {
   velocity: number;
 }
 
+export interface Spring {
+  /** Natural frequency in radians per second. */
+  omega: number;
+  /** Damping ratio: below 1 swings past the target before settling. */
+  damping: number;
+}
+
 export interface AngleSample {
   /** Milliseconds. */
   time: number;
@@ -23,6 +30,9 @@ export interface AngleSample {
  */
 export const SPRING_OMEGA = 4.2;
 export const SPRING_DAMPING = 0.65;
+const SETTLE_SPRING: Spring = { omega: SPRING_OMEGA, damping: SPRING_DAMPING };
+/** A slower, looser spring that swings back and forth a few times before resting. */
+export const SOOTHING_SPRING: Spring = { omega: 2, damping: 0.25 };
 const MAX_STEP_SECONDS = 1 / 120;
 /** Cap simulated time so a backgrounded tab doesn't replay seconds of physics. */
 const MAX_FRAME_SECONDS = 0.1;
@@ -35,14 +45,18 @@ export function angleFromPointer(pivot: Point, pointer: Point): number {
   return (Math.atan2(pointer.x - pivot.x, pointer.y - pivot.y) * 180) / Math.PI;
 }
 
-export function stepSwing(motion: SwingMotion, target: number, dtSeconds: number): SwingMotion {
+export function stepSwing(
+  motion: SwingMotion,
+  target: number,
+  dtSeconds: number,
+  { omega, damping }: Spring = SETTLE_SPRING,
+): SwingMotion {
   let { angle, velocity } = motion;
   let remaining = Math.min(Math.max(dtSeconds, 0), MAX_FRAME_SECONDS);
 
   while (remaining > 0) {
     const step = Math.min(remaining, MAX_STEP_SECONDS);
-    const acceleration =
-      -(SPRING_OMEGA ** 2) * (angle - target) - 2 * SPRING_DAMPING * SPRING_OMEGA * velocity;
+    const acceleration = -(omega ** 2) * (angle - target) - 2 * damping * omega * velocity;
 
     velocity += acceleration * step;
     angle += velocity * step;

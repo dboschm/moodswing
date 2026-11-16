@@ -46,8 +46,11 @@ describe('mood', () => {
     expect(moodBand(100).band).toBe('laughing');
     expect(moodBand(80).band).toBe('laughing');
     expect(moodBand(79).band).toBe('happy');
-    expect(moodBand(50).band).toBe('meh');
-    expect(moodBand(25).band).toBe('grumpy');
+    expect(moodBand(60).band).toBe('happy');
+    expect(moodBand(59).band).toBe('content');
+    expect(moodBand(45).band).toBe('content');
+    expect(moodBand(44).band).toBe('meh');
+    expect(moodBand(20).band).toBe('meh');
     expect(moodBand(19).band).toBe('angry');
     expect(moodBand(0).band).toBe('angry');
   });
@@ -58,13 +61,13 @@ describe('mood', () => {
   });
 
   it('counts moods per band in laughing-to-angry order', () => {
-    const counts = bandCounts([100, 90, 70, 10]);
+    const counts = bandCounts([100, 90, 70, 56, 10]);
 
     expect(counts.map(({ info, count }) => [info.band, count])).toEqual([
       ['laughing', 2],
       ['happy', 1],
+      ['content', 1],
       ['meh', 0],
-      ['grumpy', 0],
       ['angry', 1],
     ]);
   });

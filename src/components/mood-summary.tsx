@@ -5,9 +5,14 @@ import { FaceIcon } from './face-icon';
 
 interface MoodSummaryProps {
   snapshot: SessionSnapshot;
-  creating: boolean;
+  /** Only the session's creator can soothe and restart; everyone else sees those buttons greyed out. */
+  isCreator: boolean;
+  /** Soothing has started; `soothed` once every swing has come to rest. */
+  soothing: boolean;
+  soothed: boolean;
   onCopySummary: (text: string) => Promise<boolean>;
-  onStartNew: () => void;
+  onSoothe: () => void;
+  onRestart: () => void;
 }
 
 export function summaryText(snapshot: SessionSnapshot): string {
@@ -27,7 +32,7 @@ export function summaryText(snapshot: SessionSnapshot): string {
 }
 
 /** The results board shown to everyone once the session has ended. */
-export function MoodSummary({ snapshot, creating, onCopySummary, onStartNew }: MoodSummaryProps) {
+export function MoodSummary({ snapshot, isCreator, soothing, soothed, onCopySummary, onSoothe, onRestart }: MoodSummaryProps) {
   const [copied, setCopied] = useState<boolean | null>(null);
   const average = averageMood(snapshot.moods);
   const counts = bandCounts(snapshot.moods);
@@ -85,9 +90,19 @@ export function MoodSummary({ snapshot, creating, onCopySummary, onStartNew }: M
         <button type="button" className="button button--secondary" onClick={copy}>
           {copied === true ? 'Copied!' : copied === false ? 'Copy failed' : 'Copy summary'}
         </button>
-        <button type="button" className="button" onClick={onStartNew} disabled={creating}>
-          {creating ? 'Starting…' : 'Start a new session'}
-        </button>
+        {soothed ? (
+          <button type="button" className="button" onClick={onRestart} disabled={!isCreator}>
+            Start again
+          </button>
+        ) : soothing ? (
+          <button type="button" className="button" disabled>
+            soothing moodswing
+          </button>
+        ) : (
+          <button type="button" className="button" onClick={onSoothe} disabled={!isCreator}>
+            moodswing soothing
+          </button>
+        )}
       </div>
     </section>
   );

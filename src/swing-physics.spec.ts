@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_ANGLE_DEG } from '../shared/mood';
-import { angleFromPointer, isSettled, releaseVelocity, stepSwing, type SwingMotion } from './swing-physics';
+import { SOOTHING_SPRING, angleFromPointer, isSettled, releaseVelocity, stepSwing, type Spring, type SwingMotion } from './swing-physics';
 
-function simulate(motion: SwingMotion, target: number, seconds: number, onStep?: (m: SwingMotion) => void) {
+function simulate(
+  motion: SwingMotion,
+  target: number,
+  seconds: number,
+  onStep?: (m: SwingMotion) => void,
+  spring?: Spring,
+) {
   let current = motion;
 
   for (let time = 0; time < seconds; time += 1 / 60) {
-    current = stepSwing(current, target, 1 / 60);
+    current = stepSwing(current, target, 1 / 60, spring);
     onStep?.(current);
   }
 
@@ -41,6 +47,24 @@ describe('swing physics', () => {
     expect(maxAngle).toBeLessThan(22);
     expect(minAngle).toBeGreaterThan(9);
     expect(isSettled(final, 10)).toBe(true);
+  });
+
+  it('swings back and forth a few times on the soothing spring before resting', () => {
+    let crossings = 0;
+    let previous = 40;
+    const final = simulate(
+      { angle: 40, velocity: 0 },
+      0,
+      14,
+      (motion) => {
+        if (Math.sign(motion.angle) !== Math.sign(previous)) crossings += 1;
+        previous = motion.angle;
+      },
+      SOOTHING_SPRING,
+    );
+
+    expect(crossings).toBeGreaterThanOrEqual(3);
+    expect(isSettled(final, 0)).toBe(true);
   });
 
   it('never swings past the limits', () => {

@@ -10,8 +10,8 @@ import type { SessionMeta, SessionState, SessionStore } from './session-store';
 
 /*
  * Single-table layout:
- *   SESSION#<code> / META              session status, creator token hash
- *   SESSION#<code> / VOTE#<voterId>    one item per voter
+ *   SESSION#<code> / META              session status, round, creator token hash
+ *   SESSION#<code> / VOTE#<voterId>    one item per voter, tagged with its round
  *   SESSION#<code> / CONN#<connection> who to broadcast to
  *   CONN#<connection> / CONN           reverse lookup for $disconnect
  * One query on the session partition yields everything a snapshot needs.
@@ -43,6 +43,7 @@ export class DynamoSessionStore implements SessionStore {
             sk: META,
             status: meta.status,
             createdAt: meta.createdAt,
+            round: meta.round,
             creatorTokenHash: meta.creatorTokenHash,
             expiresAt: meta.expiresAt,
           },
@@ -61,7 +62,7 @@ export class DynamoSessionStore implements SessionStore {
 
   async loadSession(code: string): Promise<SessionState | null> {
     let meta: SessionMeta | undefined;
-    const votes = new Map<string, number>();
+    const voteItems: { voterId: string; mood: number; round: number }[] = [];
     const connectionIds: string[] = [];
     let exclusiveStartKey: Record<string, unknown> | undefined;
 
@@ -83,12 +84,14 @@ export class DynamoSessionStore implements SessionStore {
             code,
             status: item.status as SessionStatus,
             createdAt: Number(item.createdAt),
+            round: Number(item.round ?? 0),
             creatorTokenHash: String(item.creatorTokenHash),
             expiresAt: Number(item.expiresAt),
             ...(item.closedAt === undefined ? {} : { closedAt: Number(item.closedAt) }),
+            ...(item.soothedAt === undefined ? {} : { soothedAt: Number(item.soothedAt) }),
           };
         } else if (sk.startsWith(VOTE_PREFIX)) {
-          votes.set(sk.slice(VOTE_PREFIX.length), Number(item.mood));
+          voteItems.push({ voterId: sk.slice(VOTE_PREFIX.length), mood: Number(item.mood), round: Number(item.round ?? 0) });
         } else if (sk.startsWith(CONNECTION_PREFIX)) {
           connectionIds.push(sk.slice(CONNECTION_PREFIX.length));
         }
@@ -97,14 +100,22 @@ export class DynamoSessionStore implements SessionStore {
       exclusiveStartKey = page.LastEvaluatedKey;
     } while (exclusiveStartKey);
 
-    return meta ? { meta, votes, connectionIds } : null;
+    if (!meta) {
+      return null;
+    }
+
+    // Votes from earlier rounds stay until a new vote or TTL replaces them, but no longer count.
+    const round = meta.round;
+    const votes = new Map(voteItems.filter((vote) => vote.round === round).map((vote) => [vote.voterId, vote.mood]));
+
+    return { meta, votes, connectionIds };
   }
 
-  async putVote(code: string, voterId: string, mood: number, updatedAt: number, expiresAt: number) {
+  async putVote(code: string, voterId: string, mood: number, round: number, updatedAt: number, expiresAt: number) {
     await this.client.send(
       new PutCommand({
         TableName: this.tableName,
-        Item: { pk: sessionKey(code), sk: `${VOTE_PREFIX}${voterId}`, mood, updatedAt, expiresAt },
+        Item: { pk: sessionKey(code), sk: `${VOTE_PREFIX}${voterId}`, mood, round, updatedAt, expiresAt },
       }),
     );
   }
@@ -118,6 +129,32 @@ export class DynamoSessionStore implements SessionStore {
         ConditionExpression: 'attribute_exists(pk)',
         ExpressionAttributeNames: { '#status': 'status' },
         ExpressionAttributeValues: { ':closed': 'closed', ':closedAt': closedAt },
+      }),
+    );
+  }
+
+  async sootheSession(code: string, soothedAt: number) {
+    await this.client.send(
+      new UpdateCommand({
+        TableName: this.tableName,
+        Key: { pk: sessionKey(code), sk: META },
+        UpdateExpression: 'SET soothedAt = :soothedAt',
+        ConditionExpression: 'attribute_exists(pk)',
+        ExpressionAttributeValues: { ':soothedAt': soothedAt },
+      }),
+    );
+  }
+
+  /** Bumping the round retires every earlier vote in one write instead of deleting them. */
+  async restartSession(code: string, round: number, expiresAt: number) {
+    await this.client.send(
+      new UpdateCommand({
+        TableName: this.tableName,
+        Key: { pk: sessionKey(code), sk: META },
+        UpdateExpression: 'SET #status = :open, #round = :round, expiresAt = :expiresAt REMOVE closedAt, soothedAt',
+        ConditionExpression: 'attribute_exists(pk)',
+        ExpressionAttributeNames: { '#status': 'status', '#round': 'round' },
+        ExpressionAttributeValues: { ':open': 'open', ':round': round, ':expiresAt': expiresAt },
       }),
     );
   }

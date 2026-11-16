@@ -53,7 +53,7 @@ describe('faceGeometry', () => {
     moods.forEach((mood) => expect(faceGeometry(mood).steamOpacity > 0).toBe(mood < 15));
   });
 
-  it('turns red only when grumpy or angry', () => {
+  it('warms from yellow through orange to red below 40', () => {
     expect(faceGeometry(100).skin).toBe('#ffd23f');
     expect(faceGeometry(40).skin).toBe('#ffd23f');
     expect(faceGeometry(20).skin).toBe('#ffa23a');

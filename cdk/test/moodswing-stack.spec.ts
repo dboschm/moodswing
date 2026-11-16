@@ -46,7 +46,17 @@ describe('MoodswingStack', () => {
       (route) => route.Properties.RouteKey,
     );
     expect(routeKeys.sort()).toEqual(
-      ['$connect', '$default', '$disconnect', 'createSession', 'endSession', 'join', 'vote'].sort(),
+      [
+        '$connect',
+        '$default',
+        '$disconnect',
+        'createSession',
+        'endSession',
+        'join',
+        'restartSession',
+        'soothe',
+        'vote',
+      ].sort(),
     );
     template.resourceCountIs('AWS::ApiGatewayV2::Integration', 1);
   });

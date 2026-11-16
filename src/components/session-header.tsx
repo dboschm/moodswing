@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { averageMood, moodBand } from '../../shared/mood';
 import type { SessionSnapshot } from '../../shared/protocol';
-import type { ConnectionStatus } from '../mood-socket';
 import { FaceIcon } from './face-icon';
 import { TitleCell } from './title-cell';
 
@@ -9,19 +8,12 @@ interface SessionHeaderProps {
   code: string;
   snapshot: SessionSnapshot | null;
   isCreator: boolean;
-  status: ConnectionStatus;
   onCopyLink: () => Promise<boolean>;
   onEndSession: () => void;
 }
 
-const STATUS_LABELS: Record<ConnectionStatus, string> = {
-  connecting: 'Connecting…',
-  live: 'Live',
-  reconnecting: 'Reconnecting…',
-};
-
-/** The session's title block cells: code and invite link, status, counts, team mood and ending it. */
-export function SessionHeader({ code, snapshot, isCreator, status, onCopyLink, onEndSession }: SessionHeaderProps) {
+/** The session's title block cells: code and invite link, who is online, team mood and ending it. */
+export function SessionHeader({ code, snapshot, isCreator, onCopyLink, onEndSession }: SessionHeaderProps) {
   const [copied, setCopied] = useState<boolean | null>(null);
   const [confirming, setConfirming] = useState(false);
   const closed = snapshot?.status === 'closed';
@@ -43,12 +35,7 @@ export function SessionHeader({ code, snapshot, isCreator, status, onCopyLink, o
         </button>
       </TitleCell>
 
-      <TitleCell label="Status">
-        <span className={`status status--${closed ? 'closed' : status}`}>{closed ? 'Closed' : STATUS_LABELS[status]}</span>
-      </TitleCell>
-
       {!closed && <TitleCell label="Online">{snapshot?.online ?? '–'}</TitleCell>}
-      <TitleCell label="Moods">{snapshot?.moods.length ?? '–'}</TitleCell>
 
       <TitleCell label="Team mood">
         <span className="team-mood" aria-live="polite">

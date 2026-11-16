@@ -8,7 +8,7 @@ Everything is one CDK stack, `MoodswingStack`, in `eu-central-1`.
 | --- | --- |
 | DynamoDB table | On-demand, `pk`/`sk`, TTL on `expiresAt`. Deleted with the stack. |
 | Lambda `SessionFunction` | Node 24 on ARM, bundled with esbuild. Logs are kept for 1 week. |
-| API Gateway WebSocket API | Routes `$connect`, `$disconnect`, `$default`, `createSession`, `join`, `vote`, `endSession`; stage `prod` throttled to 100 req/s (burst 200). |
+| API Gateway WebSocket API | Routes `$connect`, `$disconnect`, `$default`, `createSession`, `join`, `vote`, `endSession`, `soothe`, `restartSession`; stage `prod` throttled to 100 req/s (burst 200). |
 | S3 bucket + CloudFront | Private bucket behind Origin Access Control, SPA fallback to `index.html`. |
 | Bucket deployment | Uploads the built client plus `config.json` holding the WebSocket URL, then invalidates CloudFront. |
 
@@ -48,7 +48,7 @@ Outputs:
 
 ## Limits worth knowing
 
-- Sessions expire 24 hours after creation. API Gateway closes WebSockets after 2 hours (10 minutes idle). The client sends heartbeats and reconnects on its own.
+- Sessions expire 24 hours after they were created or last restarted. API Gateway closes WebSockets after 2 hours (10 minutes idle). The client sends heartbeats and reconnects on its own.
 - A session accepts up to 200 voters.
 - Session codes are checked for collisions when created. Creator tokens are stored only as SHA-256 hashes.
 
