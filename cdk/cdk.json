@@ -1,0 +1,6 @@
+{
+  "app": "npx tsx bin/moodswing-cdk.ts",
+  "watch": {
+    "include": ["bin/**", "lib/**"]
+  }
+}
