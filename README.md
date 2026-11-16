@@ -2,7 +2,7 @@
 
 A team mood meter shaped like a swing.
 
-Start a session and share the link. Everyone drags their own swing towards **laughing** (left) or **angry** (right), and the emoji riding the swing morphs smoothly between the two. Every mood shows up live and anonymously for the whole team, and a see-through "team" swing hangs at the average. When you're done, the person who started the session ends it and everyone sees the final results. "moodswing soothing" then lets go of every swing on everyone's screen and lets them all swing gently into **content**. "Start again" reopens the same session with no moods, so the link you already shared keeps working.
+Start a session and share the link. Everyone drags their own swing towards **laughing** (left) or **angry** (right), and the emoji riding the swing morphs smoothly between the two. Every mood shows up live and anonymously for the whole team, and a see-through "team" swing hangs at the average. When you're done, the person who started the session ends it and everyone sees the final results. "Soothing" then lets go of every swing on everyone's screen and lets them all swing gently into **content**. "Start again" reopens the same session with no moods, so the link you already shared keeps working.
 
 ![A mood session with three teammates](docs/screenshot.png)
 

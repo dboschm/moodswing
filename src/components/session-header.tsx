@@ -54,7 +54,15 @@ export function SessionHeader({ code, snapshot, isCreator, onCopyLink, onEndSess
           {confirming ? (
             <span className="confirm" role="group" aria-label="Confirm ending the session">
               End for everyone?
-              <button type="button" className="button button--danger button--small" onClick={onEndSession}>
+              <button
+                type="button"
+                className="button button--danger button--small"
+                onClick={() => {
+                  // The cell comes back when the session restarts; it should ask afresh then.
+                  setConfirming(false);
+                  onEndSession();
+                }}
+              >
                 Yes, end it
               </button>
               <button type="button" className="button button--secondary button--small" onClick={() => setConfirming(false)}>

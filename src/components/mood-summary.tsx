@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { averageMood, bandCounts, moodBand } from '../../shared/mood';
+import { averageMood, bandCounts } from '../../shared/mood';
 import type { SessionSnapshot } from '../../shared/protocol';
+import { analyzeMoods } from '../mood-analysis';
 import { FaceIcon } from './face-icon';
 
 interface MoodSummaryProps {
@@ -15,6 +16,8 @@ interface MoodSummaryProps {
   onRestart: () => void;
 }
 
+const moodCount = (count: number) => (count === 1 ? '1 mood' : `${count} moods`);
+
 export function summaryText(snapshot: SessionSnapshot): string {
   const average = averageMood(snapshot.moods);
 
@@ -26,15 +29,15 @@ export function summaryText(snapshot: SessionSnapshot): string {
     .filter(({ count }) => count > 0)
     .map(({ info, count }) => `${info.emoji}×${count}`)
     .join(' ');
-  const people = snapshot.moods.length === 1 ? '1 mood' : `${snapshot.moods.length} moods`;
 
-  return `moodswing ${snapshot.code}: ${people}, the team feels ${moodBand(average).label.toLowerCase()} (${Math.round(average)}/100). ${counts}`;
+  return `moodswing ${snapshot.code}: ${analyzeMoods(snapshot.moods).headline}. ${moodCount(snapshot.moods.length)}, average ${Math.round(average)}/100. ${counts}`;
 }
 
 /** The results board shown to everyone once the session has ended. */
 export function MoodSummary({ snapshot, isCreator, soothing, soothed, onCopySummary, onSoothe, onRestart }: MoodSummaryProps) {
   const [copied, setCopied] = useState<boolean | null>(null);
   const average = averageMood(snapshot.moods);
+  const { headline } = analyzeMoods(snapshot.moods);
   const counts = bandCounts(snapshot.moods);
   const most = Math.max(1, ...counts.map(({ count }) => count));
   const happiestFirst = [...snapshot.moods].sort((a, b) => b - a);
@@ -51,11 +54,9 @@ export function MoodSummary({ snapshot, isCreator, soothing, soothed, onCopySumm
         <FaceIcon mood={average ?? 50} size={88} animated={average !== null} />
         <div>
           <p className="eyebrow">Final results</p>
-          <h2 id="summary-title">
-            {average === null ? 'Nobody shared a mood' : `The team is feeling ${moodBand(average).label.toLowerCase()}`}
-          </h2>
+          <h2 id="summary-title">{headline}</h2>
           <p className="hint">
-            {snapshot.moods.length === 1 ? '1 mood' : `${snapshot.moods.length} moods`}
+            {moodCount(snapshot.moods.length)}
             {average === null ? '' : ` · average ${Math.round(average)}/100`}
             {endedAt ? ` · ended ${endedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
           </p>
@@ -77,7 +78,7 @@ export function MoodSummary({ snapshot, isCreator, soothing, soothed, onCopySumm
 
       {happiestFirst.length > 0 && (
         <div className="all-moods">
-          <p className="eyebrow">Every mood, happiest first</p>
+          <p className="eyebrow">Every mood</p>
           <div className="all-moods__faces">
             {happiestFirst.map((mood, index) => (
               <FaceIcon key={index} mood={mood} size={30} />
@@ -96,11 +97,11 @@ export function MoodSummary({ snapshot, isCreator, soothing, soothed, onCopySumm
           </button>
         ) : soothing ? (
           <button type="button" className="button" disabled>
-            soothing moodswing
+            Soothing
           </button>
         ) : (
           <button type="button" className="button" onClick={onSoothe} disabled={!isCreator}>
-            moodswing soothing
+            Soothing
           </button>
         )}
       </div>
